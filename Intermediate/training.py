@@ -5,6 +5,11 @@ from sklearn.model_selection import train_test_split
 from data import BodyPart 
 import tensorflow as tf
 import tensorflowjs as tfjs
+from matplotlib import pyplot as plt
+from matplotlib.collections import LineCollection
+from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
+import itertools
+import numpy as np
 
 tfjs_model_dir = 'model'
 
@@ -108,6 +113,35 @@ def preprocess_data(X_train):
         processed_X_train.append(tf.reshape(embedding, (34)))
     return tf.convert_to_tensor(processed_X_train)
 
+def plot_confusion_matrix(cm, classes,
+                          normalize=False,
+                          title='Confusion matrix',
+                          cmap=plt.cm.Greys):
+  """Plots the confusion matrix."""
+  if normalize:
+    cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
+    print("Normalized confusion matrix")
+  else:
+    print('Confusion matrix, without normalization')
+
+  plt.imshow(cm, interpolation='nearest', cmap=cmap)
+  plt.title(title)
+  plt.colorbar()
+  tick_marks = np.arange(len(classes))
+  plt.xticks(tick_marks, classes, rotation=55)
+  plt.yticks(tick_marks, classes)
+  fmt = '.2f' if normalize else 'd'
+  thresh = cm.max() / 2.
+  for i, j in itertools.product(range(cm.shape[0]), range(cm.shape[1])):
+    plt.text(j, i, format(cm[i, j], fmt),
+              horizontalalignment="center",
+              color="white" if cm[i, j] > thresh else "black")
+
+  plt.ylabel('True label')
+  plt.xlabel('Predicted label')
+  plt.tight_layout()
+  plt.show()
+
 
 X, y, class_names = load_csv('train_data.csv')
 X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.15)
@@ -155,10 +189,43 @@ history = model.fit(processed_X_train, y_train,
 
 
 print('-----------------EVAUATION----------------')
+plt.plot(history.history['accuracy'])
+plt.plot(history.history['val_accuracy'])
+plt.title('Model accuracy')
+plt.ylabel('accuracy')
+plt.xlabel('epoch')
+plt.legend(['TRAIN', 'VAL'], loc='lower right')
+plt.show()
+plt.plot(history.history['loss'])
+plt.plot(history.history['val_loss'])
+plt.title('Model loss')
+plt.ylabel('loss')
+plt.xlabel('epoch')
+plt.legend(['TRAIN', 'VAL'], loc='lower right')
+plt.show()
 loss, accuracy = model.evaluate(processed_X_test, y_test)
 print('LOSS: ', loss)
 print("ACCURACY: ", accuracy)
+# Classify pose in the TEST dataset using the trained model
+y_pred = model.predict(processed_X_test)
 
+# Convert the prediction result to class name
+y_pred_label = [class_names[i] for i in np.argmax(y_pred, axis=1)]
+y_true_label = [class_names[i] for i in np.argmax(y_test, axis=1)]
+
+# Plot the confusion matrix
+cm = confusion_matrix(np.argmax(y_test, axis=1), np.argmax(y_pred, axis=1))
+plot_confusion_matrix(cm,
+                      class_names,
+                      title ='Confusion Matrix of Pose Classification Model')
+
+plot_confusion_matrix(cm,
+                      class_names, normalize=True,
+                      title ='Confusion Matrix of Pose Classification Model')
+
+# Print the classification report
+print('\nClassification Report:\n', classification_report(y_true_label,
+                                                          y_pred_label))
 
 tfjs.converters.save_keras_model(model, tfjs_model_dir)
 print('tfjs model saved at ',tfjs_model_dir)
